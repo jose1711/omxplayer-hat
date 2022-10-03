@@ -1,0 +1,10 @@
+only
+filetype *.avi,*.mkv,*.m4v,*.mp4 ~/bin/omxplayer.sh
+nnoremap <f2> :command<cr>
+
+command! playSTRETCH
+ \ :! ~/bin/omxplayer.sh %c --aspect-mode stretch
+command! playFILL
+ \ :! ~/bin/omxplayer.sh %c --aspect-mode fill
+command! quitMenu
+ \ :

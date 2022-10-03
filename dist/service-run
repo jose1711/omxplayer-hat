@@ -1,0 +1,3 @@
+#!/bin/sh
+cd ~/bin
+exec python3 omxplayer-hat.py

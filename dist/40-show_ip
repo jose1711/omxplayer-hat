@@ -1,0 +1,5 @@
+#!/bin/bash
+ips=$(ip a | awk '/inet / && !/127.0.0.1/ {print $2}')
+[ -z "${ips}" ] && exit 0
+su - {{user}} -c "~{{user}}/bin/write_lcd.py 'IP:
+${ips}' 15"

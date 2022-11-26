@@ -80,6 +80,17 @@ install -o "${user}" -Dm755 dist/LCD_Config.py /home/${user}/bin/LCD_Config.py
 install -o "${user}" -Dm755 dist/write_lcd.py /home/${user}/bin/write_lcd.py
 install -o "${user}" -Dm755 dist/show_help.sh /home/${user}/bin/show_help.sh
 
+# make services work with read-only /
+ln -sf "/run/runit/supervise.omxplayer-hat" "/home/${user}/service/omxplayer-hat/supervise"
+
+grep -q '^mkdir /run/runit/supervise.omxplayer-hat' /etc/runit/core-services/03-filesystems.sh || {
+sed -i '/^msg "Mounting rootfs read-write/i \
+mkdir /run/runit/supervise.omxplayer-hat && chown '"${user}"' /run/runit/supervise.omxplayer-hat' \
+      /etc/runit/core-services/03-filesystems.sh; }
+
+# leave "/" mounted as read-only
+sed -i 's%mount -o remount,rw /%mount -o remount,ro /%' /etc/runit/core-services/03-filesystems.sh
+
 # replace placeholder with string
 sed -i "s/{{user}}/${user}/g" /home/${user}/bin/mount_all.sh \
                               /usr/libexec/dhcpcd-hooks/40-show_ip
@@ -101,6 +112,7 @@ grep -q bin/show_help.sh /etc/rc.local || {
 # https://docs.voidlinux.org/config/services/user-services.html
 install -Dm755 dist/run /etc/sv/runsvdir-${user}/run
 sed -i "s/{{user}}/${user}/" /etc/sv/runsvdir-${user}/run
+ln -sf "/run/runit/supervise.runsvdir-${user}" "/etc/sv/runsvdir-${user}/supervise"
 ln -sf "/etc/sv/runsvdir-${user}" /var/service
 
 # set terminal font

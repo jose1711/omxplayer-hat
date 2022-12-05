@@ -28,7 +28,7 @@ chsh -s /bin/bash root
 chsh -s /bin/bash "${user}"
 
 install -o "${user}" -m755 -d /home/${user}/videos
-ln -sf /media /home/${user}/videos/media
+ln -sf /run/media/${user} /home/${user}/videos/media
 
 # install prerequisites
 xbps-install -yu tmux \
@@ -42,6 +42,9 @@ xbps-install -yu tmux \
                  python3-devel \
                  gcc \
                  terminus-font
+
+# copy udevil configuration
+install -Dm644 dist/udevil.conf /etc/udevil/udevil.conf
 
 # install spidev from pip
 su - "${user}" -c 'pip3 install spidev'

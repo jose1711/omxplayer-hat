@@ -73,8 +73,8 @@ install -Dm755 dist/40-show_ip /usr/libexec/dhcpcd-hooks/40-show_ip
 # copy user files
 install -o "${user}" -Dm755 dist/.bashrc /home/${user}/.bashrc
 install -o "${user}" -Dm644 dist/vifmrc /home/${user}/.vifm/vifmrc
-install -o "${user}" -Dm755 dist/service-run /home/${user}/service/omxplayer-hat/run
 install -o "${user}" -d /home/${user}/service/omxplayer-hat
+install -o "${user}" -Dm755 dist/service-run /home/${user}/service/omxplayer-hat/run
 install -o "${user}" -Dm755 dist/omxplayer.sh /home/${user}/bin/omxplayer.sh
 install -o "${user}" -Dm755 dist/omxplayer-hat.py /home/${user}/bin/omxplayer-hat.py
 install -o "${user}" -Dm755 dist/mount_all.sh /home/${user}/bin/mount_all.sh

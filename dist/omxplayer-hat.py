@@ -20,6 +20,7 @@ GPIO.setmode(GPIO.BCM)
 logging.basicConfig(level=logging.DEBUG,
                     filename='/tmp/control.log')
 bounce_time = 250
+bus_lock = threading.Lock()
 
 
 def _modifier_logic(channel):
@@ -40,15 +41,15 @@ def modifier_callback(channel):
     threading.Thread(target=_modifier_logic, args=(channel,), daemon=True).start()
 
 
-def button_callback(event):
-    logging.debug(f'button {event} pressed')
-
-    if omxplayer_bus.refresh():
-        logging.debug(['omxplayer_send', btn_action[event][0]])
-        omxplayer_bus.send(btn_action[event][0])
-    else:
-        logging.debug(['tmux_send', btn_action[event][1]])
-        tmux_send(btn_action[event][1])
+def button_callback(channel):
+    logging.debug(f'button {channel} pressed')
+    with bus_lock:
+        if omxplayer_bus.refresh():
+            logging.debug(['omxplayer_send', btn_action[channel][0]])
+            omxplayer_bus.send(btn_action[channel][0])
+        else:
+            logging.debug(['tmux_send', btn_action[channel][1]])
+            tmux_send(btn_action[channel][1])
 
 
 def tmux_send(action):

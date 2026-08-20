@@ -53,8 +53,13 @@ def button_callback(channel):
 
 
 def tmux_send(action):
-    cmd = ['tmux', 'send']
-    run(cmd + [action])
+    result = run(['tmux', 'list-sessions', '-F', '#{session_name}'],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        logging.warning('no tmux session found')
+        return
+    session = result.stdout.strip().splitlines()[0]
+    run(['tmux', 'send-keys', '-t', session, action])
 
 
 class OMXPlayer_bus():

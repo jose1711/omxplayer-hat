@@ -36,12 +36,19 @@ logging.basicConfig(
 bounce_time = 250
 bus_lock = threading.Lock()
 _modifier_lock = threading.Lock()
+_modifier_active = threading.Event()
+
+VOLUME_UP = 2
+VOLUME_DOWN = 1
+JOY_UP = 6
+JOY_DOWN = 19
 
 
 def _modifier_logic(channel):
     if not _modifier_lock.acquire(blocking=False):
         logging.debug('modifier already active, ignoring')
         return
+    _modifier_active.set()
     try:
         start = monotonic()
         while not GPIO.input(channel):
@@ -52,10 +59,20 @@ def _modifier_logic(channel):
             if not GPIO.input(btn1) or not GPIO.input(btn3):
                 run(shlex.split(reboot_cmd))
                 return
-        if monotonic() - start > 1.5:
-            tmux_send('f2')
+            if not GPIO.input(JOY_UP):
+                with bus_lock:
+                    omxplayer_bus.send(VOLUME_UP)
+                sleep(0.3)
+            elif not GPIO.input(JOY_DOWN):
+                with bus_lock:
+                    omxplayer_bus.send(VOLUME_DOWN)
+                sleep(0.3)
+        elapsed = monotonic() - start
     finally:
+        _modifier_active.clear()
         _modifier_lock.release()
+    if elapsed > 1.5:
+        tmux_send('f2')
 
 
 def modifier_callback(channel):
@@ -63,6 +80,8 @@ def modifier_callback(channel):
 
 
 def button_callback(channel):
+    if _modifier_active.is_set():
+        return
     logging.debug(f'button {channel} pressed')
     with bus_lock:
         if omxplayer_bus.refresh():

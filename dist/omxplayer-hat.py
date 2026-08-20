@@ -54,50 +54,55 @@ def tmux_send(action):
 
 class OMXPlayer_bus():
     def __init__(self):
-        ''' populate prop and key globals '''
         self.bus_file = f'/tmp/omxplayerdbus.{getuser()}'
         self.connection = None
+        self.last_bus_address = None
+        self.proxy = None
         self.refresh()
-
 
     def refresh(self):
         if not os.path.exists(self.bus_file):
             logging.info('No bus file exists!')
             self.proxy = None
+            self.connection = None
+            self.last_bus_address = None
             return False
+
+        bus_address = open(self.bus_file).read().strip()
+        if bus_address != self.last_bus_address:
+            logging.info(f'Bus address changed: {bus_address}')
+            self.connection = None
+            self.last_bus_address = bus_address
+
         if not self.connection:
-            self.connection = dbus.bus.BusConnection(open(self.bus_file).read().strip())
+            try:
+                self.connection = dbus.bus.BusConnection(bus_address)
+            except Exception as e:
+                logging.error(f'Failed to connect to bus: {e}')
+                self.connection = None
+                return False
+
         try:
             self.proxy = self.connection.get_object('org.mpris.MediaPlayer2.omxplayer',
-                                                   '/org/mpris/MediaPlayer2',
-                                                   introspect=False)
-        except:
+                                                    '/org/mpris/MediaPlayer2',
+                                                    introspect=False)
+        except Exception as e:
+            logging.warning(f'Failed to get proxy: {e}')
             self.proxy = None
+            self.connection = None
             return False
         return True
 
-
-    def fix(self):
-        try:
-            self.proxy = self.proxy.get_object('org.mpris.MediaPlayer2.omxplayer',
-                                               '/org/mpris/MediaPlayer2',
-                                               introspect=False)
-        except Exception as e:
-            logging.critical(e)
-            return False
-
-
     def send(self, action):
-        prop = dbus.Interface(self.proxy, 'org.freedesktop.DBus.Properties')
+        if self.proxy is None:
+            logging.warning('No proxy, cannot send action')
+            return
         key = dbus.Interface(self.proxy, 'org.mpris.MediaPlayer2.Player')
         try:
-            status = str(self.proxy.Get(dbus.String('org.mpris.MediaPlayer2.Player'), dbus.String('PlaybackStatus')))
-        except (DBusException, AttributeError):
-            # try to reacquire the bus connection
-            if not self.fix():
-                logging.critical('could not send action')
-                return
-        key.Action(dbus.Int32(action))  # https://github.com/popcornmix/omxplayer/blob/master/KeyConfig.h
+            key.Action(dbus.Int32(action))
+        except (DBusException, AttributeError) as e:
+            logging.error(f'send failed: {e}')
+            self.connection = None
 
 
 omxplayer_bus = OMXPlayer_bus()

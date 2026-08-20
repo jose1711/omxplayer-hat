@@ -9,10 +9,20 @@ import threading
 from dbus.exceptions import DBusException
 import logging
 import os.path
+import signal
+import sys
 
 
 shutdown_cmd = 'sudo shutdown -h now'
 reboot_cmd = 'sudo reboot'
+
+
+def _exit_handler(signum, frame):
+    GPIO.cleanup()
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, _exit_handler)
+signal.signal(signal.SIGINT, _exit_handler)
 
 
 GPIO.setmode(GPIO.BCM)

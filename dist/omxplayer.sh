@@ -31,7 +31,11 @@ dbfile=~/positions.sqlite
 
 cd $(dirname "${file}")
 file_full=$(readlink -f "${file}")
-stored_position=$(echo "select position from positions where name = \"${file_full}\"" | sqlite3 "${dbfile}")
+stored_position=""
+if [ -f "${dbfile}" ]
+then
+  stored_position=$(echo "select position from positions where name = \"${file_full}\"" | sqlite3 "${dbfile}" 2>/dev/null)
+fi
 
 EXTRAARG=""
 if [ -n "${stored_position}" ]

@@ -63,7 +63,7 @@ GETTY_ARGS="--autologin ${user} --noclear"
 BAUD_RATE=38400
 TERM_NAME=linux
 HERE
-rm /var/service/agetty-tty1 2>/dev/null
+rm -f /var/service/agetty-tty1
 ln -sf /etc/sv/agetty-autologin-tty1 /var/service
 
 # copy system files

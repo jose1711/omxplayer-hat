@@ -32,7 +32,7 @@ install -o "${user}" -m755 -d /home/${user}/videos
 ln -sf /run/media/${user} /home/${user}/videos/media
 
 # install prerequisites
-xbps-install -yu tmux \
+xbps-install -Syu tmux \
                  omxplayer \
                  vifm \
 								 udevil \

@@ -73,6 +73,8 @@ def _modifier_logic(channel):
         _modifier_lock.release()
     if elapsed > 1.5:
         tmux_send('f2')
+    elif elapsed > 0.5:
+        show_omx_info()
 
 
 def modifier_callback(channel):
@@ -93,6 +95,25 @@ def button_callback(channel):
 
 
 _tmux_session = None
+_write_lcd = os.path.expanduser('~/bin/write_lcd.py')
+
+
+def show_omx_info():
+    with bus_lock:
+        if not omxplayer_bus.refresh():
+            return
+        try:
+            props = dbus.Interface(omxplayer_bus.proxy, 'org.freedesktop.DBus.Properties')
+            pos_us = int(props.Get('org.mpris.MediaPlayer2.Player', 'Position'))
+            metadata = props.Get('org.mpris.MediaPlayer2.Player', 'Metadata')
+            url = str(metadata.get('xesam:url', ''))
+        except Exception as e:
+            logging.error(f'Failed to get omx info: {e}')
+            return
+    filename = os.path.basename(url)
+    pos_s = pos_us // 1_000_000
+    text = f'{filename}\n{pos_s // 3600:02d}:{(pos_s % 3600) // 60:02d}:{pos_s % 60:02d}'
+    run([_write_lcd, text, '5'])
 
 
 def tmux_send(action):

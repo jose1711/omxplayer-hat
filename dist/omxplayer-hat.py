@@ -40,6 +40,7 @@ _modifier_lock = threading.Lock()
 
 def _modifier_logic(channel):
     if not _modifier_lock.acquire(blocking=False):
+        logging.debug('modifier already active, ignoring')
         return
     try:
         start = monotonic()

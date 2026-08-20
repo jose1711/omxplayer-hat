@@ -48,7 +48,7 @@ xbps-install -Syu tmux \
 install -Dm644 dist/udevil.conf /etc/udevil/udevil.conf
 
 # install spidev from pip
-su - "${user}" -c 'pip3 install spidev'
+su - "${user}" -c 'pip3 install --break-system-packages spidev'
 
 # enable SPI interface
 grep -q '^dtparam=spi=on' /boot/config.txt || {

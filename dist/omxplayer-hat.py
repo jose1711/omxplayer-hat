@@ -82,6 +82,7 @@ class OMXPlayer_bus():
         if bus_address != self.last_bus_address:
             logging.info(f'Bus address changed: {bus_address}')
             self.connection = None
+            self.proxy = None
             self.last_bus_address = bus_address
 
         if not self.connection:
@@ -92,15 +93,16 @@ class OMXPlayer_bus():
                 self.connection = None
                 return False
 
-        try:
-            self.proxy = self.connection.get_object('org.mpris.MediaPlayer2.omxplayer',
-                                                    '/org/mpris/MediaPlayer2',
-                                                    introspect=False)
-        except Exception as e:
-            logging.warning(f'Failed to get proxy: {e}')
-            self.proxy = None
-            self.connection = None
-            return False
+        if self.proxy is None:
+            try:
+                self.proxy = self.connection.get_object('org.mpris.MediaPlayer2.omxplayer',
+                                                        '/org/mpris/MediaPlayer2',
+                                                        introspect=False)
+            except Exception as e:
+                logging.warning(f'Failed to get proxy: {e}')
+                self.proxy = None
+                self.connection = None
+                return False
         return True
 
     def send(self, action):

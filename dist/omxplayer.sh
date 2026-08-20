@@ -37,8 +37,8 @@ EXTRAARG=""
 if [ -n "${stored_position}" ]
 then
   # resume or start from beginning?
-  hms=$(seconds_hmc stored_position)
-  hms_formatted=$(seconds_hmc_formatted stored_position)
+  hms=$(seconds_hmc $stored_position)
+  hms_formatted=$(seconds_hmc_formatted $stored_position)
   clear
   cat <<HERE
 

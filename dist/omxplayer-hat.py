@@ -119,12 +119,21 @@ def show_omx_info():
             pos_us = int(props.Get('org.mpris.MediaPlayer2.Player', 'Position'))
             metadata = props.Get('org.mpris.MediaPlayer2.Player', 'Metadata')
             url = str(metadata.get('xesam:url', ''))
+            dur_us = int(metadata.get('mpris:length', 0))
         except Exception as e:
             logging.error(f'Failed to get omx info: {e}')
             return
     filename = os.path.basename(url)
     pos_s = pos_us // 1_000_000
-    text = f'{filename}\n{pos_s // 3600:02d}:{(pos_s % 3600) // 60:02d}:{pos_s % 60:02d}'
+    pos_str = f'{pos_s // 3600:02d}:{(pos_s % 3600) // 60:02d}:{pos_s % 60:02d}'
+    if dur_us > 0:
+        pct = pos_us / dur_us
+        filled = int(pct * 9)
+        bar = '=' * filled + '>' + ' ' * (9 - filled)
+        progress = f'[{bar}]{int(pct * 100):3d}%'
+    else:
+        progress = pos_str
+    text = f'{filename}\n{pos_str}\n{progress}'
     run([_write_lcd, text, '5'])
 
 

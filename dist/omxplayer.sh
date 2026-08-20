@@ -54,8 +54,10 @@ HERE
   fi
 fi
 
+shopt -s nullglob
 for subs in *.srt *.sub
 do
   omxplayer-dbus $EXTRAARG "$@" --subtitles "${subs}" "${file}"
 done
+shopt -u nullglob
 omxplayer-dbus $EXTRAARG "$@" "${file}"

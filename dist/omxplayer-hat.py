@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from getpass import getuser
-from subprocess import run
+from subprocess import run, Popen
 from time import sleep, monotonic
 import RPi.GPIO as GPIO
 import dbus
@@ -67,10 +67,12 @@ def _modifier_logic(channel):
                 with bus_lock:
                     omxplayer_bus.send(VOLUME_UP)
                 sleep(0.3)
+                show_volume_lcd()
             elif not GPIO.input(JOY_DOWN):
                 with bus_lock:
                     omxplayer_bus.send(VOLUME_DOWN)
                 sleep(0.3)
+                show_volume_lcd()
             elif not GPIO.input(JOY_LEFT):
                 with bus_lock:
                     omxplayer_bus.send(SUB_DELAY_DEC)
@@ -108,6 +110,16 @@ def button_callback(channel):
 
 _tmux_session = None
 _write_lcd = os.path.expanduser('~/bin/write_lcd.py')
+_lcd_proc = None
+_lcd_lock = threading.Lock()
+
+
+def _show_lcd_async(text, timeout=5):
+    global _lcd_proc
+    with _lcd_lock:
+        if _lcd_proc and _lcd_proc.poll() is None:
+            _lcd_proc.terminate()
+        _lcd_proc = Popen([_write_lcd, text, str(timeout)])
 
 
 def show_omx_info():
@@ -134,7 +146,23 @@ def show_omx_info():
     else:
         progress = pos_str
     text = f'{filename}\n{pos_str}\n{progress}'
-    run([_write_lcd, text, '5'])
+    _show_lcd_async(text, 5)
+
+
+def show_volume_lcd():
+    with bus_lock:
+        if not omxplayer_bus.refresh():
+            return
+        try:
+            props = dbus.Interface(omxplayer_bus.proxy, 'org.freedesktop.DBus.Properties')
+            vol = float(props.Get('org.mpris.MediaPlayer2.Player', 'Volume'))
+        except Exception as e:
+            logging.error(f'Failed to get volume: {e}')
+            return
+    vol_pct = int(vol * 100)
+    filled = min(10, int(vol * 10))
+    bar = '|' * filled + ' ' * (10 - filled)
+    _show_lcd_async(f'Volume\n[{bar}]\n{vol_pct}%', 2)
 
 
 def tmux_send(action):

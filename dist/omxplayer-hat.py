@@ -89,7 +89,8 @@ class OMXPlayer_bus():
             self.last_bus_address = None
             return False
 
-        bus_address = open(self.bus_file).read().strip()
+        with open(self.bus_file) as f:
+            bus_address = f.read().strip()
         if bus_address != self.last_bus_address:
             logging.info(f'Bus address changed: {bus_address}')
             self.connection = None

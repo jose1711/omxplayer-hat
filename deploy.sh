@@ -33,16 +33,16 @@ ln -sf /run/media/${user} /home/${user}/videos/media
 
 # install prerequisites
 xbps-install -Syu tmux \
-                 omxplayer \
-                 vifm \
-								 udevil \
-                 vim \
-                 python3-Pillow \
-                 python3-RPi.GPIO \
-                 python3-pip \
-                 python3-devel \
-                 gcc \
-                 terminus-font
+             omxplayer \
+             vifm \
+             udevil \
+             vim \
+             python3-Pillow \
+             python3-RPi.GPIO \
+             python3-pip \
+             python3-devel \
+             gcc \
+             terminus-font
 
 # copy udevil configuration
 install -Dm644 dist/udevil.conf /etc/udevil/udevil.conf
@@ -75,7 +75,6 @@ install -o "${user}" -Dm755 dist/.bashrc /home/${user}/.bashrc
 install -o "${user}" -Dm644 dist/vifmrc /home/${user}/.vifm/vifmrc
 install -o "${user}" -Dm755 dist/service-run /home/${user}/service/omxplayer-hat/run
 install -o "${user}" -d /home/${user}/service/omxplayer-hat
-install -o "${user}" -d /home/${user}/vifm
 install -o "${user}" -Dm755 dist/omxplayer.sh /home/${user}/bin/omxplayer.sh
 install -o "${user}" -Dm755 dist/omxplayer-hat.py /home/${user}/bin/omxplayer-hat.py
 install -o "${user}" -Dm755 dist/mount_all.sh /home/${user}/bin/mount_all.sh
@@ -105,11 +104,11 @@ ${user} ALL=(ALL:ALL) NOPASSWD: ALL
 HERE
 
 grep -q bin/mount_all.sh /etc/rc.local || {
-  echo "~${user}/bin/mount_all.sh" >> /etc/rc.local
+  echo "/home/${user}/bin/mount_all.sh" >> /etc/rc.local
 }
 
 grep -q bin/show_help.sh /etc/rc.local || {
-  echo "su ${user} -c '~/bin/show_help.sh' &" >> /etc/rc.local
+  echo "su ${user} -c '/home/${user}/bin/show_help.sh' &" >> /etc/rc.local
 }
 
 # configure per-user services
@@ -121,11 +120,11 @@ ln -sf "/etc/sv/runsvdir-${user}" /var/service
 
 # set terminal font
 sed -i 's/^ *FONT=.*/FONT=ter-u32n/' /etc/rc.conf
-egrep -q '^ *FONT=ter-u32n' /etc/rc.conf || {
+grep -qE '^ *FONT=ter-u32n' /etc/rc.conf || {
   echo 'FONT=ter-u32n' >> /etc/rc.conf
 }
 
-egrep -q "write_lcd.py 'SHUTTING DOWN'" /etc/rc.shutdown || {
+grep -qE "write_lcd.py 'SHUTTING DOWN'" /etc/rc.shutdown || {
   cat >> /etc/rc.shutdown <<HERE
 su - ${user} -c "~/bin/write_lcd.py 'SHUTTING DOWN'"
 HERE

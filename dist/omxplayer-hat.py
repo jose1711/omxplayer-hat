@@ -8,6 +8,7 @@ import shlex
 import threading
 from dbus.exceptions import DBusException
 import logging
+import logging.handlers
 import os.path
 import signal
 import sys
@@ -26,8 +27,12 @@ signal.signal(signal.SIGINT, _exit_handler)
 
 
 GPIO.setmode(GPIO.BCM)
-logging.basicConfig(level=logging.DEBUG,
-                    filename='/tmp/control.log')
+logging.basicConfig(
+    level=logging.DEBUG,
+    handlers=[logging.handlers.RotatingFileHandler(
+        '/tmp/control.log', maxBytes=1_000_000, backupCount=2
+    )]
+)
 bounce_time = 250
 bus_lock = threading.Lock()
 _modifier_lock = threading.Lock()

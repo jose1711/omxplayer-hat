@@ -21,20 +21,26 @@ logging.basicConfig(level=logging.DEBUG,
                     filename='/tmp/control.log')
 bounce_time = 250
 bus_lock = threading.Lock()
+_modifier_lock = threading.Lock()
 
 
 def _modifier_logic(channel):
-    start = monotonic()
-    while not GPIO.input(channel):
-        sleep(0.05)
-        if not GPIO.input(btn2):
-            run(shlex.split(shutdown_cmd))
-            return
-        if not GPIO.input(btn1) or not GPIO.input(btn3):
-            run(shlex.split(reboot_cmd))
-            return
-    if monotonic() - start > 1.5:
-        tmux_send('f2')
+    if not _modifier_lock.acquire(blocking=False):
+        return
+    try:
+        start = monotonic()
+        while not GPIO.input(channel):
+            sleep(0.05)
+            if not GPIO.input(btn2):
+                run(shlex.split(shutdown_cmd))
+                return
+            if not GPIO.input(btn1) or not GPIO.input(btn3):
+                run(shlex.split(reboot_cmd))
+                return
+        if monotonic() - start > 1.5:
+            tmux_send('f2')
+    finally:
+        _modifier_lock.release()
 
 
 def modifier_callback(channel):

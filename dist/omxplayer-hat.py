@@ -40,8 +40,12 @@ _modifier_active = threading.Event()
 
 VOLUME_UP = 2
 VOLUME_DOWN = 1
+SUB_DELAY_DEC = 24
+SUB_DELAY_INC = 25
 JOY_UP = 6
 JOY_DOWN = 19
+JOY_LEFT = 5
+JOY_RIGHT = 26
 
 
 def _modifier_logic(channel):
@@ -66,6 +70,14 @@ def _modifier_logic(channel):
             elif not GPIO.input(JOY_DOWN):
                 with bus_lock:
                     omxplayer_bus.send(VOLUME_DOWN)
+                sleep(0.3)
+            elif not GPIO.input(JOY_LEFT):
+                with bus_lock:
+                    omxplayer_bus.send(SUB_DELAY_DEC)
+                sleep(0.3)
+            elif not GPIO.input(JOY_RIGHT):
+                with bus_lock:
+                    omxplayer_bus.send(SUB_DELAY_INC)
                 sleep(0.3)
         elapsed = monotonic() - start
     finally:

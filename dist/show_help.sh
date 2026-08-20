@@ -2,6 +2,7 @@
 ~/bin/write_lcd.py '== Help ==
 JOY: navigate/seek
 JOY+U/D: volume
+JOY+L/R: sub delay
 KEY1 - first/subs
 KEY2 - confirm/pause
 KEY3 - last/quit

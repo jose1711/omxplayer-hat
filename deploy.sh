@@ -1,5 +1,6 @@
 #!/bin/bash
 # set -x
+set -euo pipefail
 user="CONFIGUREME"
 
 if [ $(id -u) -ne 0 ]
@@ -20,7 +21,7 @@ getent passwd "${user}" >/dev/null 2>&1 || {
   passwd "${user}"
 }
 
-groupadd gpio
+getent group gpio >/dev/null 2>&1 || groupadd gpio
 usermod -a -G video $user
 usermod -a -G gpio $user
 
@@ -56,7 +57,7 @@ grep -q '^dtparam=spi=on' /boot/config.txt || {
 
 # configure autologin
 # (https://dudik.github.io/posts/void-linux-agetty-login-without-username-just-password.html)
-cp -R /etc/sv/agetty-tty1 /etc/sv/agetty-autologin-tty1
+[ -d /etc/sv/agetty-autologin-tty1 ] || cp -R /etc/sv/agetty-tty1 /etc/sv/agetty-autologin-tty1
 cat > /etc/sv/agetty-autologin-tty1/conf <<HERE
 GETTY_ARGS="--autologin ${user} --noclear"
 BAUD_RATE=38400

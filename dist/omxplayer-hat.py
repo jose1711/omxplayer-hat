@@ -26,12 +26,11 @@ def modifier_callback(event):
     start = monotonic()
     while not GPIO.input(event):
         if not GPIO.input(btn2):
-            GPIO.remove_event_detect(btn2)
             run(shlex.split(shutdown_cmd))
+            return
         if not GPIO.input(btn1) or not GPIO.input(btn3):
-            GPIO.remove_event_detect(btn1)
-            GPIO.remove_event_detect(btn3)
             run(shlex.split(reboot_cmd))
+            return
     if monotonic() - start > 1.5:
         tmux_send('f2')
 

@@ -9,7 +9,6 @@ import threading
 from dbus.exceptions import DBusException
 import logging
 import os.path
-import sys
 
 
 shutdown_cmd = 'sudo shutdown -h now'
@@ -157,7 +156,6 @@ GPIO.add_event_detect(btn_joy, GPIO.FALLING, callback=modifier_callback, bouncet
 logging.debug('started')
 
 while True:
-    logging.debug('main loop')
     sleep(120)
 
 GPIO.cleanup()

@@ -5,6 +5,7 @@ from time import sleep, monotonic
 import RPi.GPIO as GPIO
 import dbus
 import shlex
+import threading
 from dbus.exceptions import DBusException
 import logging
 import os.path
@@ -21,10 +22,10 @@ logging.basicConfig(level=logging.DEBUG,
 bounce_time = 250
 
 
-# joystick button serves as a modifier
-def modifier_callback(event):
+def _modifier_logic(channel):
     start = monotonic()
-    while not GPIO.input(event):
+    while not GPIO.input(channel):
+        sleep(0.05)
         if not GPIO.input(btn2):
             run(shlex.split(shutdown_cmd))
             return
@@ -33,6 +34,10 @@ def modifier_callback(event):
             return
     if monotonic() - start > 1.5:
         tmux_send('f2')
+
+
+def modifier_callback(channel):
+    threading.Thread(target=_modifier_logic, args=(channel,), daemon=True).start()
 
 
 def button_callback(event):

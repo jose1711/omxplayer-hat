@@ -33,12 +33,10 @@ ln -sf /run/media/${user} /home/${user}/videos/media
 
 # install prerequisites
 xbps-install -Syu tmux \
-             omxplayer \
              vifm \
              udevil \
              vim \
              python3-Pillow \
-             python3-RPi.GPIO \
              python3-pip \
              python3-devel \
              gcc \
@@ -47,8 +45,9 @@ xbps-install -Syu tmux \
 # copy udevil configuration
 install -Dm644 dist/udevil.conf /etc/udevil/udevil.conf
 
-# install spidev from pip into a venv (RPi.GPIO/Pillow come from xbps via --system-site-packages)
-su - "${user}" -c 'python3 -m venv --system-site-packages ~/.venv && ~/.venv/bin/pip install spidev'
+# install spidev and rpi-lgpio (drop-in RPi.GPIO replacement) from pip into a venv
+# (Pillow comes from xbps via --system-site-packages)
+su - "${user}" -c 'python3 -m venv --system-site-packages ~/.venv && ~/.venv/bin/pip install spidev rpi-lgpio'
 
 # enable SPI interface
 grep -q '^dtparam=spi=on' /boot/config.txt || {

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/{{user}}/.venv/bin/python3
 '''
 write text to LCD, then wait and turn it off
 

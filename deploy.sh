@@ -47,8 +47,8 @@ xbps-install -Syu tmux \
 # copy udevil configuration
 install -Dm644 dist/udevil.conf /etc/udevil/udevil.conf
 
-# install spidev from pip
-su - "${user}" -c 'pip3 install --break-system-packages spidev'
+# install spidev from pip into a venv (RPi.GPIO/Pillow come from xbps via --system-site-packages)
+su - "${user}" -c 'python3 -m venv --system-site-packages ~/.venv && ~/.venv/bin/pip install spidev'
 
 # enable SPI interface
 grep -q '^dtparam=spi=on' /boot/config.txt || {
@@ -96,6 +96,7 @@ sed -i 's%mount -o remount,rw /%mount -o remount,ro /%' /etc/runit/core-services
 
 # replace placeholder with string
 sed -i "s/{{user}}/${user}/g" /home/${user}/bin/mount_all.sh \
+                              /home/${user}/bin/write_lcd.py \
                               /usr/libexec/dhcpcd-hooks/40-show_ip
 
 # add sudoers entry

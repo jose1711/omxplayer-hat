@@ -1,4 +1,4 @@
-SUBSYSTEM=="vchiq", GROUP="video", MODE="0660"
+SUBSYSTEM=="misc", KERNEL=="vchiq", GROUP="video", MODE="0660"
 SUBSYSTEM=="spidev", KERNEL=="spidev*", GROUP="gpio", MODE="0660"
 SUBSYSTEM=="bcm2835-gpiomem", KERNEL=="gpiomem", GROUP="gpio", MODE="0660"
 SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"

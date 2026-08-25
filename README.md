@@ -96,3 +96,22 @@ to improve performance) and everything else here is under GPL-v3.
 If you do not trust built packages in `repo/`, you may want to compile them manually - see `build/` which
 contains files to help you with this task. https://github.com/void-linux/void-packages#quick-start is a nice
 starting point.
+
+## Changelog
+
+### 2026-08-25
+
+- LCD handling rewritten around a persistent `lcd_display.py`/`LcdManager` daemon owned by
+  `omxplayer-hat.py`, replacing the old approach of spawning a fresh `write_lcd.py` process (and
+  re-initializing the SPI/GPIO hardware) for every update.
+- Added a live "now playing" dashboard shown on the LCD while a video plays: title, progress bar,
+  elapsed/remaining time, current time of day, and a wifi signal-strength icon + IP address.
+- Added vector splash screens (`lcd_splash.py`) for boot, shutdown and reboot.
+- `write_lcd.py`/`lcd_splash.py` now forward requests to the running daemon over a local Unix
+  socket (via the new lightweight `lcd_client.py`) and only draw directly on the hardware as a
+  fallback when the daemon isn't reachable, so the SPI bus is never driven by two processes at once.
+- Added immediate LCD feedback for every joystick/button press (seek amount, subtitle track,
+  play/pause, quit, volume, subtitle delay) instead of waiting for the next dashboard refresh.
+- Fixed the volume and subtitle-delay button actions, which were sending the wrong OMXPlayer
+  DBus action codes (they were adjusting playback speed instead of volume, and doing nothing
+  useful instead of adjusting subtitle delay).

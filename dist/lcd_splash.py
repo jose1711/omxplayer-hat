@@ -1,10 +1,9 @@
 #!/home/{{user}}/.venv/bin/python3
 '''
-show a message on the LCD
+show a full-screen splash graphic on the LCD
 
-  arg1 = text to display (can be multiline)
-[ arg2 = timeout (seconds) ]
-[ arg3 = color ]
+  arg1 = splash kind: boot | shutdown | reboot
+[ arg2 = timeout (seconds), default 6 ]
 
 Tries the omxplayer-hat daemon's socket first, so a running "now playing"
 dashboard doesn't get fought over the SPI bus. Falls back to driving the
@@ -20,11 +19,10 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         sys.exit()
 
-    text = sys.argv[1]
-    timeout = int(sys.argv[2]) if len(sys.argv) >= 3 else 5
-    color = sys.argv[3].upper() if len(sys.argv) >= 4 else 'YELLOW'
+    kind = sys.argv[1]
+    timeout = int(sys.argv[2]) if len(sys.argv) >= 3 else 6
 
-    payload = {'text': text, 'timeout': timeout, 'color': color}
+    payload = {'splash': kind, 'timeout': timeout}
     if not lcd_client.send_via_daemon(payload, timeout):
         import lcd_display
-        lcd_display.send_direct(lambda d: d.show_text(text, color=color), timeout)
+        lcd_display.send_direct(lambda d: d.show_splash(kind), timeout)

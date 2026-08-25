@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from getpass import getuser
-from subprocess import run, Popen
+from subprocess import run
 from time import sleep, monotonic
+from urllib.parse import unquote, urlparse
 import RPi.GPIO as GPIO
 import dbus
 import shlex
@@ -13,12 +14,20 @@ import os.path
 import signal
 import sys
 
+import lcd_client
+import lcd_display
+
 
 shutdown_cmd = 'sudo shutdown -h now'
 reboot_cmd = 'sudo reboot'
 
+lcd = None  # assigned once LcdManager is up; guarded below since a signal
+            # can arrive during startup, before that has happened
+
 
 def _exit_handler(signum, frame):
+    if lcd is not None:
+        lcd.stop()
     GPIO.cleanup()
     sys.exit(0)
 
@@ -38,10 +47,13 @@ bus_lock = threading.Lock()
 _modifier_lock = threading.Lock()
 _modifier_active = threading.Event()
 
-VOLUME_UP = 2
-VOLUME_DOWN = 1
-SUB_DELAY_DEC = 24
-SUB_DELAY_INC = 25
+
+# action codes from omxplayer's KeyConfig.h (the DBus Action() method takes
+# the same integers as its internal key-action enum)
+VOLUME_DOWN = 17
+VOLUME_UP = 18
+SUB_DELAY_DEC = 13
+SUB_DELAY_INC = 14
 JOY_UP = 6
 JOY_DOWN = 19
 JOY_LEFT = 5
@@ -58,9 +70,11 @@ def _modifier_logic(channel):
         while not GPIO.input(channel):
             sleep(0.05)
             if not GPIO.input(btn2):
+                lcd.request_splash('shutdown', timeout=30)
                 run(shlex.split(shutdown_cmd))
                 return
             if not GPIO.input(btn1) or not GPIO.input(btn3):
+                lcd.request_splash('reboot', timeout=30)
                 run(shlex.split(reboot_cmd))
                 return
             if not GPIO.input(JOY_UP):
@@ -77,10 +91,12 @@ def _modifier_logic(channel):
                 with bus_lock:
                     omxplayer_bus.send(SUB_DELAY_DEC)
                 sleep(0.3)
+                lcd.request_message('Subtitle delay -', timeout=1.5)
             elif not GPIO.input(JOY_RIGHT):
                 with bus_lock:
                     omxplayer_bus.send(SUB_DELAY_INC)
                 sleep(0.3)
+                lcd.request_message('Subtitle delay +', timeout=1.5)
         elapsed = monotonic() - start
     finally:
         _modifier_active.clear()
@@ -95,58 +111,94 @@ def modifier_callback(channel):
     threading.Thread(target=_modifier_logic, args=(channel,), daemon=True).start()
 
 
+# short LCD labels shown immediately after a button sends an omxplayer
+# action, keyed by the same action codes as btn_action's first element.
+# ACTION_PLAYPAUSE (16) isn't here: its label depends on the state being
+# switched to, so it's computed in _action_feedback instead.
+ACTION_LABELS = {
+    22: 'Seek »» +10:00',   # ACTION_SEEK_FORWARD_LARGE
+    21: 'Seek «« -10:00',   # ACTION_SEEK_BACK_LARGE
+    19: 'Seek « -0:30',     # ACTION_SEEK_BACK_SMALL
+    20: 'Seek » +0:30',     # ACTION_SEEK_FORWARD_SMALL
+    11: 'Subtitles: next',  # ACTION_NEXT_SUBTITLE
+    15: 'Quit',             # ACTION_EXIT
+}
+
+
+def _action_feedback(action, state_before):
+    if action == 16:  # ACTION_PLAYPAUSE: label the state we're switching to
+        if state_before is not None:
+            return 'Paused' if not state_before['paused'] else 'Playing'
+        return 'Play/Pause'
+    return ACTION_LABELS.get(action)
+
+
 def button_callback(channel):
     if _modifier_active.is_set():
         return
     logging.debug(f'button {channel} pressed')
+    action = btn_action[channel][0]
+    # only ACTION_PLAYPAUSE's label depends on the state being switched
+    # FROM, so only fetch it (a dbus round trip) when actually needed
+    state_before = get_playback_state() if action == 16 else None
     with bus_lock:
-        if omxplayer_bus.refresh():
-            logging.debug(['omxplayer_send', btn_action[channel][0]])
-            omxplayer_bus.send(btn_action[channel][0])
-        else:
-            logging.debug(['tmux_send', btn_action[channel][1]])
-            tmux_send(btn_action[channel][1])
+        active = omxplayer_bus.refresh()
+        if active:
+            logging.debug(['omxplayer_send', action])
+            omxplayer_bus.send(action)
+    if not active:
+        logging.debug(['tmux_send', btn_action[channel][1]])
+        tmux_send(btn_action[channel][1])
+        return
+    label = _action_feedback(action, state_before)
+    if label:
+        lcd.request_message(label, timeout=1.5)
 
 
 _tmux_session = None
-_write_lcd = os.path.expanduser('~/bin/write_lcd.py')
-_lcd_proc = None
-_lcd_lock = threading.Lock()
 
 
-def _show_lcd_async(text, timeout=5):
-    global _lcd_proc
-    with _lcd_lock:
-        if _lcd_proc and _lcd_proc.poll() is None:
-            _lcd_proc.terminate()
-        _lcd_proc = Popen([_write_lcd, text, str(timeout)])
-
-
-def show_omx_info():
+def get_playback_state():
+    '''Snapshot of the active omxplayer track, or None if nothing plays.
+    Used by the LcdManager render loop to draw the "now playing" dashboard.'''
     with bus_lock:
         if not omxplayer_bus.refresh():
-            return
+            return None
         try:
             props = dbus.Interface(omxplayer_bus.proxy, 'org.freedesktop.DBus.Properties')
             pos_us = int(props.Get('org.mpris.MediaPlayer2.Player', 'Position'))
             metadata = props.Get('org.mpris.MediaPlayer2.Player', 'Metadata')
             url = str(metadata.get('xesam:url', ''))
             dur_us = int(metadata.get('mpris:length', 0))
+            try:
+                paused = str(props.Get('org.mpris.MediaPlayer2.Player', 'PlaybackStatus')) != 'Playing'
+            except DBusException:
+                paused = False
         except Exception as e:
             logging.error(f'Failed to get omx info: {e}')
-            return
-    filename = os.path.basename(url)
-    pos_s = pos_us // 1_000_000
-    pos_str = f'{pos_s // 3600:02d}:{(pos_s % 3600) // 60:02d}:{pos_s % 60:02d}'
-    if dur_us > 0:
-        pct = pos_us / dur_us
+            return None
+    filename = os.path.basename(unquote(urlparse(url).path))
+    return {
+        'title': lcd_display.display_title(filename),
+        'pos_s': pos_us / 1_000_000,
+        'dur_s': dur_us / 1_000_000,
+        'paused': paused,
+    }
+
+
+def show_omx_info():
+    state = get_playback_state()
+    if state is None:
+        return
+    elapsed = lcd_display.fmt_hms(state['pos_s'])
+    if state['dur_s'] > 0:
+        pct = state['pos_s'] / state['dur_s']
         filled = int(pct * 9)
         bar = '=' * filled + '>' + ' ' * (9 - filled)
         progress = f'[{bar}]{int(pct * 100):3d}%'
     else:
-        progress = pos_str
-    text = f'{filename}\n{pos_str}\n{progress}'
-    _show_lcd_async(text, 5)
+        progress = elapsed
+    lcd.request_message(f'{state["title"]}\n{elapsed}\n{progress}', timeout=5)
 
 
 def show_volume_lcd():
@@ -162,7 +214,7 @@ def show_volume_lcd():
     vol_pct = int(vol * 100)
     filled = min(10, int(vol * 10))
     bar = '|' * filled + ' ' * (10 - filled)
-    _show_lcd_async(f'Volume\n[{bar}]\n{vol_pct}%', 2)
+    lcd.request_message(f'Volume\n[{bar}]\n{vol_pct}%', timeout=2)
 
 
 def tmux_send(action):
@@ -183,15 +235,23 @@ class OMXPlayer_bus():
         self.connection = None
         self.last_bus_address = None
         self.proxy = None
+        self._last_connected = None  # tri-state, so the render loop's frequent
+                                      # polling only logs on actual transitions
         self.refresh()
+
+    def _finish(self, connected):
+        if connected != self._last_connected:
+            logging.info('omxplayer bus available' if connected
+                          else 'omxplayer bus unavailable')
+            self._last_connected = connected
+        return connected
 
     def refresh(self):
         if not os.path.exists(self.bus_file):
-            logging.info('No bus file exists!')
             self.proxy = None
             self.connection = None
             self.last_bus_address = None
-            return False
+            return self._finish(False)
 
         with open(self.bus_file) as f:
             bus_address = f.read().strip()
@@ -207,19 +267,18 @@ class OMXPlayer_bus():
             except Exception as e:
                 logging.error(f'Failed to connect to bus: {e}')
                 self.connection = None
-                return False
+                return self._finish(False)
 
         try:
             if not self.connection.name_has_owner('org.mpris.MediaPlayer2.omxplayer'):
-                logging.info('omxplayer service no longer registered on bus')
                 self.proxy = None
                 self.connection = None
-                return False
+                return self._finish(False)
         except DBusException as e:
             logging.error(f'Failed to check bus ownership: {e}')
             self.proxy = None
             self.connection = None
-            return False
+            return self._finish(False)
 
         if self.proxy is None:
             try:
@@ -230,8 +289,8 @@ class OMXPlayer_bus():
                 logging.warning(f'Failed to get proxy: {e}')
                 self.proxy = None
                 self.connection = None
-                return False
-        return True
+                return self._finish(False)
+        return self._finish(True)
 
     def send(self, action):
         if self.proxy is None:
@@ -247,6 +306,27 @@ class OMXPlayer_bus():
 
 
 omxplayer_bus = OMXPlayer_bus()
+
+
+class _NullLcd:
+    '''Stand-in used if the LCD hardware fails to initialize, so a flaky
+    display doesn't take down joystick/button control with it.'''
+    def request_message(self, *args, **kwargs):
+        pass
+
+    def request_splash(self, *args, **kwargs):
+        pass
+
+    def stop(self):
+        pass
+
+
+try:
+    lcd = lcd_display.LcdManager(get_playback_state, lcd_client.socket_path())
+    lcd.start()
+except Exception as e:
+    logging.error(f'LCD init failed, continuing without display: {e}')
+    lcd = _NullLcd()
 
 # button = (omxplayer_action, vifm_key)
 btn_action = {

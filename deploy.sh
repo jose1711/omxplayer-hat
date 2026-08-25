@@ -36,6 +36,7 @@ xbps-install -Syu tmux \
              vifm \
              udevil \
              vim \
+             iw \
              dejavu-fonts-ttf \
              python3-Pillow \
              python3-pip \
@@ -100,7 +101,10 @@ install -o "${user}" -Dm755 dist/omxplayer-hat.py /home/${user}/bin/omxplayer-ha
 install -o "${user}" -Dm755 dist/mount_all.sh /home/${user}/bin/mount_all.sh
 install -o "${user}" -Dm755 dist/LCD_1in44.py /home/${user}/bin/LCD_1in44.py
 install -o "${user}" -Dm755 dist/LCD_Config.py /home/${user}/bin/LCD_Config.py
+install -o "${user}" -Dm755 dist/lcd_client.py /home/${user}/bin/lcd_client.py
+install -o "${user}" -Dm755 dist/lcd_display.py /home/${user}/bin/lcd_display.py
 install -o "${user}" -Dm755 dist/write_lcd.py /home/${user}/bin/write_lcd.py
+install -o "${user}" -Dm755 dist/lcd_splash.py /home/${user}/bin/lcd_splash.py
 install -o "${user}" -Dm755 dist/show_help.sh /home/${user}/bin/show_help.sh
 chown "${user}" /home/${user} /home/${user}/.vifm
 
@@ -118,6 +122,7 @@ mkdir /run/runit/supervise.omxplayer-hat && chown '"${user}"' /run/runit/supervi
 # replace placeholder with string
 sed -i "s/{{user}}/${user}/g" /home/${user}/bin/mount_all.sh \
                               /home/${user}/bin/write_lcd.py \
+                              /home/${user}/bin/lcd_splash.py \
                               /usr/libexec/dhcpcd-hooks/40-show_ip
 
 # add sudoers entry
@@ -130,7 +135,7 @@ grep -q bin/mount_all.sh /etc/rc.local || {
 }
 
 grep -q bin/show_help.sh /etc/rc.local || {
-  echo "su ${user} -c '/home/${user}/bin/show_help.sh' &" >> /etc/rc.local
+  echo "su ${user} -c '/home/${user}/bin/lcd_splash.py boot 4 && /home/${user}/bin/show_help.sh' &" >> /etc/rc.local
 }
 
 # configure per-user services
@@ -146,9 +151,9 @@ grep -qE '^ *FONT=ter-u32n' /etc/rc.conf || {
   echo 'FONT=ter-u32n' >> /etc/rc.conf
 }
 
-grep -qE "write_lcd.py 'SHUTTING DOWN'" /etc/rc.shutdown || {
+grep -qE "lcd_splash.py shutdown" /etc/rc.shutdown || {
   cat >> /etc/rc.shutdown <<HERE
-su - ${user} -c "~/bin/write_lcd.py 'SHUTTING DOWN'"
+su - ${user} -c "~/bin/lcd_splash.py shutdown 6"
 HERE
 }
 

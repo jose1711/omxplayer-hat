@@ -1,10 +1,18 @@
 # omxplayer-hat
 
 Control OMXPlayer using joystick + buttons of a 1.44" LCD Display Module (https://www.waveshare.com/Pico-LCD-1.44.htm). 
-Note that LCD screen is turned off most of the time to conserve power. It is only used to indicate:
+Note that the LCD backlight is turned off whenever nothing is playing, to conserve power. While a video is
+playing it shows a live "now playing" dashboard: title, elapsed/remaining time with a progress bar, current
+time of day and wifi status (signal-strength icon + IP). The rest of the time it lights up briefly to show:
   - current IP address (when being assigned by DHCP)
   - startup help (key - action assignment)
-  - system shutdown
+  - system shutdown/reboot
+
+`omxplayer-hat.py` owns the display for as long as it runs (it's a boot-time service), driving it through
+`lcd_display.py`. The one-off scripts (`write_lcd.py`, `lcd_splash.py`, the dhcpcd IP hook, `rc.local`/
+`rc.shutdown`) hand their message to that running daemon over a local socket, so the SPI bus is never
+touched by two processes at once; they only fall back to drawing directly if the daemon isn't up yet
+(e.g. very early boot or after shutdown has already stopped it).
 
 ## Instructions
 
@@ -26,6 +34,7 @@ Note that LCD screen is turned off most of the time to conserve power. It is onl
    psk="MyPassword"
   }
   ```
+  you can add multiple network blocks.
 
 * create the following symlink to make wpa supplicant start automatically
   ```
@@ -66,6 +75,7 @@ Note that LCD screen is turned off most of the time to conserve power. It is onl
   ./deploy.sh
   # type new password for user when prompted
   ```
+* set password for user set in `deploy.sh`
 * prohibit `root` login via SSH
   ```
   # login via ssh

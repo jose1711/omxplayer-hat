@@ -39,6 +39,12 @@ xbps-install -Syu tmux \
              xbps-install dejavu-fonts-ttf \
              python3-Pillow \
              python3-pip \
+             make \
+             python3-dbus \
+             unzip \
+             python3-setuptools \
+             swig \
+             wget \
              python3-devel \
              gcc \
              htop \
@@ -47,6 +53,13 @@ xbps-install -Syu tmux \
 
 # copy udevil configuration
 install -Dm644 dist/udevil.conf /etc/udevil/udevil.conf
+
+[ -f lg.zip ] || wget http://abyz.me.uk/lg/lg.zip
+unzip -o lg.zip
+pushd lg
+make
+sudo make install
+popd
 
 # install spidev and rpi-lgpio (drop-in RPi.GPIO replacement) from pip into a venv
 # (Pillow comes from xbps via --system-site-packages)
@@ -89,6 +102,7 @@ install -o "${user}" -Dm755 dist/LCD_1in44.py /home/${user}/bin/LCD_1in44.py
 install -o "${user}" -Dm755 dist/LCD_Config.py /home/${user}/bin/LCD_Config.py
 install -o "${user}" -Dm755 dist/write_lcd.py /home/${user}/bin/write_lcd.py
 install -o "${user}" -Dm755 dist/show_help.sh /home/${user}/bin/show_help.sh
+chown "${user}" /home/${user} /home/${user}/.vifm
 
 # make services work with read-only /
 ln -sf "/run/runit/supervise.omxplayer-hat" "/home/${user}/service/omxplayer-hat/supervise"

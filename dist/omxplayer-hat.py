@@ -209,6 +209,18 @@ class OMXPlayer_bus():
                 self.connection = None
                 return False
 
+        try:
+            if not self.connection.name_has_owner('org.mpris.MediaPlayer2.omxplayer'):
+                logging.info('omxplayer service no longer registered on bus')
+                self.proxy = None
+                self.connection = None
+                return False
+        except DBusException as e:
+            logging.error(f'Failed to check bus ownership: {e}')
+            self.proxy = None
+            self.connection = None
+            return False
+
         if self.proxy is None:
             try:
                 self.proxy = self.connection.get_object('org.mpris.MediaPlayer2.omxplayer',
@@ -231,6 +243,7 @@ class OMXPlayer_bus():
         except (DBusException, AttributeError) as e:
             logging.error(f'send failed: {e}')
             self.connection = None
+            self.proxy = None
 
 
 omxplayer_bus = OMXPlayer_bus()

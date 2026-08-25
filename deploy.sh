@@ -40,6 +40,8 @@ xbps-install -Syu tmux \
              python3-pip \
              python3-devel \
              gcc \
+             htop \
+             swig \
              terminus-font
 
 # copy udevil configuration
@@ -91,7 +93,7 @@ mkdir /run/runit/supervise.omxplayer-hat && chown '"${user}"' /run/runit/supervi
       /etc/runit/core-services/03-filesystems.sh; }
 
 # leave "/" mounted as read-only
-sed -i 's%mount -o remount,rw /%mount -o remount,ro /%' /etc/runit/core-services/03-filesystems.sh
+# sed -i 's%mount -o remount,rw /%mount -o remount,ro /%' /etc/runit/core-services/03-filesystems.sh
 
 # replace placeholder with string
 sed -i "s/{{user}}/${user}/g" /home/${user}/bin/mount_all.sh \

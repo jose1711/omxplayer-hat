@@ -10,28 +10,45 @@ Note that LCD screen is turned off most of the time to conserve power. It is onl
 
 * get at least a 16GB microSD card and make sure it is empty (or contains data you no longer need)
 * download the latest `void-rpi-*.img.xz` from https://repo-default.voidlinux.org/live/current/
-* follow Installation section of Void Handbook (https://docs.voidlinux.org/installation/index.html)
-* boot system (default password for `root` is `voidlinux`) and change the password using `passwd` command
-  * configure timezone
+  * for Pi Zero W use `void-rpi-armv6l`. For other models refer to https://docs.voidlinux.org/installation/guides/arm-devices/raspberry-pi.html#supported-models. Make sure to use glibc version (not musl).
+* use Rpi-Imager to write the image to the SD card
+* mount the 2nd partition on /mnt
   ```
-  ln -sf /usr/share/zoneinfo/<timezone> /etc/localtime
+  mount /dev/sdX2 /mnt
+  cd /mnt
   ```
-* (optional) configure network as per https://docs.voidlinux.org/config/network/index.html
+
+* edit `etc/wpa_supplicant/wpa_supplicant.conf` add the following section
   ```
-  ip link
-  # wlan adapter name shows up at wlan0 hence we'll use it in the command below
-  wpa_passphrase 'MYSSID' 'MYPASS' >> /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-  ln -s /etc/sv/wpa_supplicant /etc/runit/runsvdir/default/
-  # wait a minute
-  ip a
-  # ip address should appear and device should also be available through SSH
+  network={
+   scan_ssid=1
+   ssid="MyNetwork"
+   psk="MyPassword"
+  }
   ```
-* perform a system update
+
+* create the following symlink to make wpa supplicant start automatically
   ```
+  ln -s /etc/sv/wpa_supplicant etc/runit/runsvdir/default
+  ```
+
+* umount the SD card, insert it into the Raspberry Pi and boot it.
+
+* login as `root` with password `voidlinux`, change the password immediately
+
+* perform the system update
+  ```
+  xbps-install -S
   xbps-install -yu xbps
   xbps-install -Suy
   ```
-* reboot
+
+* configure timezone
+  ```
+  ln -sf /usr/share/zoneinfo/<timezone> /etc/localtime
+  ```
+
+* reboot the system
 * install git
   ```
   xbps-install -y git
@@ -41,6 +58,7 @@ Note that LCD screen is turned off most of the time to conserve power. It is onl
   git clone https://github.com/jose1711/omxplayer-hat
   cd omxplayer-hat/
   ```
+
 * edit `deploy.sh` - set username based on your preference
 * run `deploy.sh`
   ```
@@ -48,7 +66,6 @@ Note that LCD screen is turned off most of the time to conserve power. It is onl
   ./deploy.sh
   # type new password for user when prompted
   ```
-* shutdown, remove SD card and expand partition using GParted, then reinsert into Pi and boot it again
 * prohibit `root` login via SSH
   ```
   # login via ssh
@@ -57,8 +74,15 @@ Note that LCD screen is turned off most of the time to conserve power. It is onl
   echo 'PermitRootLogin no' >> /etc/ssh/sshd_config
   sv restart sshd
   ```
+* reboot one last time
 
 ## License
 
 `LCD_1in44.py` and `LCD_Config.py` use a custom license from Waveshare (code was slightly modified
 to improve performance) and everything else here is under GPL-v3.
+
+## Manual compilation
+
+If you do not trust built packages in `repo/`, you may want to compile them manually - see `build/` which
+contains files to help you with this task. https://github.com/void-linux/void-packages#quick-start is a nice
+starting point.

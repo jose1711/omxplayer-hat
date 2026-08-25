@@ -20,7 +20,7 @@ def write(text, LCD):
                      (LCD.width, LCD.height),
                      "BLACK")
     draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype('/usr/share/fonts/TTF/FreeSans.ttf', 10)
+    font = ImageFont.truetype('/usr/share/fonts/TTF/DejaVuSans.ttf', 10)
     _, _, textwidth, textheight = draw.textbbox((0, 0), text)
     x = (LCD.width - textwidth) / 2
     y = (LCD.height - textheight) / 2

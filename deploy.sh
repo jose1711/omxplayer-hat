@@ -36,6 +36,7 @@ xbps-install -Syu tmux \
              vifm \
              udevil \
              vim \
+             xbps-install dejavu-fonts-ttf \
              python3-Pillow \
              python3-pip \
              python3-devel \
@@ -54,6 +55,11 @@ su - "${user}" -c 'python3 -m venv --system-site-packages ~/.venv && ~/.venv/bin
 # enable SPI interface
 grep -q '^dtparam=spi=on' /boot/config.txt || {
   echo dtparam=spi=on >> /boot/config.txt
+}
+
+# disable KMS
+grep -q '^dtoverlay=vc4-kms-v3d' /boot/config.txt && {
+  sed -i 's/dtoverlay=vc4-kms-v3d/#&/' /boot/config.txt
 }
 
 # configure autologin
@@ -131,6 +137,12 @@ grep -qE "write_lcd.py 'SHUTTING DOWN'" /etc/rc.shutdown || {
 su - ${user} -c "~/bin/write_lcd.py 'SHUTTING DOWN'"
 HERE
 }
+
+# install rpi-userland libraries and omxplayer
+xbps-install -R . rpi-userland rpi-userland-devel omxplayer
+
+# stick to the installed versions
+xbps-pkgdb -m hold omxplayer rpi-userland rpi-userland-devel
 
 # clear package cache 
 xbps-remove -Oo

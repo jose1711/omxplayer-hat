@@ -153,7 +153,7 @@ HERE
 }
 
 # install rpi-userland libraries and omxplayer
-xbps-install -R . rpi-userland rpi-userland-devel omxplayer
+xbps-install -yR repo rpi-userland rpi-userland-devel omxplayer
 
 # stick to the installed versions
 xbps-pkgdb -m hold omxplayer rpi-userland rpi-userland-devel

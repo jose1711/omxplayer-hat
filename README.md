@@ -75,7 +75,6 @@ touched by two processes at once; they only fall back to drawing directly if the
   ./deploy.sh
   # type new password for user when prompted
   ```
-* set password for user set in `deploy.sh`
 * prohibit `root` login via SSH
   ```
   # login via ssh

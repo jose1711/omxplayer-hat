@@ -60,6 +60,17 @@ JOY_LEFT = 5
 JOY_RIGHT = 26
 
 
+def _confirmed_low(pin, checks=3, delay=0.03):
+    '''Extra debounce for the shutdown/reboot combo specifically: these are
+    destructive/hard-to-reverse, so a single noisy GPIO read must not be
+    enough to trigger one — require it to read low consistently.'''
+    for _ in range(checks):
+        if GPIO.input(pin):
+            return False
+        sleep(delay)
+    return True
+
+
 def _modifier_logic(channel):
     if not _modifier_lock.acquire(blocking=False):
         logging.debug('modifier already active, ignoring')
@@ -69,11 +80,16 @@ def _modifier_logic(channel):
         start = monotonic()
         while not GPIO.input(channel):
             sleep(0.05)
-            if not GPIO.input(btn2):
+            if not GPIO.input(btn2) and _confirmed_low(btn2):
+                logging.info('shutdown combo confirmed on btn2 (GPIO%d)', btn2)
                 lcd.request_splash('shutdown', timeout=30)
                 run(shlex.split(shutdown_cmd))
                 return
-            if not GPIO.input(btn1) or not GPIO.input(btn3):
+            btn1_low = not GPIO.input(btn1) and _confirmed_low(btn1)
+            btn3_low = not GPIO.input(btn3) and _confirmed_low(btn3)
+            if btn1_low or btn3_low:
+                logging.info('reboot combo confirmed: btn1(GPIO%d)=%s btn3(GPIO%d)=%s',
+                             btn1, btn1_low, btn3, btn3_low)
                 lcd.request_splash('reboot', timeout=30)
                 run(shlex.split(reboot_cmd))
                 return

@@ -107,6 +107,7 @@ install -o "${user}" -Dm755 dist/write_lcd.py /home/${user}/bin/write_lcd.py
 install -o "${user}" -Dm755 dist/lcd_splash.py /home/${user}/bin/lcd_splash.py
 install -o "${user}" -Dm755 dist/show_help.sh /home/${user}/bin/show_help.sh
 chown "${user}" /home/${user} /home/${user}/.vifm
+chown "${user}" /home/${user}/bin
 
 # make services work with read-only /
 ln -sf "/run/runit/supervise.omxplayer-hat" "/home/${user}/service/omxplayer-hat/supervise"

@@ -96,6 +96,13 @@ starting point.
 
 ## Changelog
 
+### 2026-08-27
+
+- Added a per-user `devmon` service (`~/service/devmon`) so USB drives plugged in after boot get
+  automounted (under `/run/media/${user}`) without needing a reboot or a manual `mount_all.sh` run.
+- Added `ntfs-3g` as a dependency: without it, `mount` falls back to the kernel's `ntfs3` driver,
+  which doesn't understand the `utf8` option udevil passes, and NTFS drives failed to automount.
+
 ### 2026-08-26
 
 - Replaced the "backlight off while idle" behavior with an idle screen: wifi status + IP address

@@ -35,6 +35,7 @@ ln -sf /run/media/${user} /home/${user}/videos/media
 xbps-install -Syu tmux \
              vifm \
              udevil \
+             ntfs-3g \
              vim \
              iw \
              dejavu-fonts-ttf \
@@ -95,6 +96,8 @@ install -o "${user}" -Dm755 dist/.bashrc /home/${user}/.bashrc
 install -o "${user}" -Dm644 dist/vifmrc /home/${user}/.vifm/vifmrc
 install -o "${user}" -d /home/${user}/service/omxplayer-hat
 install -o "${user}" -Dm755 dist/service-run /home/${user}/service/omxplayer-hat/run
+install -o "${user}" -d /home/${user}/service/devmon
+install -o "${user}" -Dm755 dist/devmon-run /home/${user}/service/devmon/run
 install -o "${user}" -Dm755 dist/omxplayer.sh /home/${user}/bin/omxplayer.sh
 install -o "${user}" -Dm755 dist/omxplayer-hat.py /home/${user}/bin/omxplayer-hat.py
 install -o "${user}" -Dm755 dist/mount_all.sh /home/${user}/bin/mount_all.sh
@@ -105,14 +108,16 @@ install -o "${user}" -Dm755 dist/lcd_display.py /home/${user}/bin/lcd_display.py
 install -o "${user}" -Dm755 dist/write_lcd.py /home/${user}/bin/write_lcd.py
 install -o "${user}" -Dm755 dist/lcd_splash.py /home/${user}/bin/lcd_splash.py
 chown "${user}" /home/${user} /home/${user}/.vifm
-chown "${user}" /home/${user}/bin
+chown "${user}" /home/${user}/bin /home/${user}/service
 
 # make services work with read-only /
 ln -sf "/run/runit/supervise.omxplayer-hat" "/home/${user}/service/omxplayer-hat/supervise"
+ln -sf "/run/runit/supervise.devmon" "/home/${user}/service/devmon/supervise"
 
 grep -q '^mkdir /run/runit/supervise.omxplayer-hat' /etc/runit/core-services/03-filesystems.sh || {
 sed -i '/^msg "Mounting rootfs read-write/i \
-mkdir /run/runit/supervise.omxplayer-hat && chown '"${user}"' /run/runit/supervise.omxplayer-hat' \
+mkdir /run/runit/supervise.omxplayer-hat && chown '"${user}"' /run/runit/supervise.omxplayer-hat && \
+mkdir /run/runit/supervise.devmon && chown '"${user}"' /run/runit/supervise.devmon' \
       /etc/runit/core-services/03-filesystems.sh; }
 
 # leave "/" mounted as read-only

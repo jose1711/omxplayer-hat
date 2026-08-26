@@ -80,16 +80,29 @@ def _modifier_logic(channel):
         start = monotonic()
         while not GPIO.input(channel):
             sleep(0.05)
-            if not GPIO.input(btn2) and _confirmed_low(btn2):
-                logging.info('shutdown combo confirmed on btn2 (GPIO%d)', btn2)
+            # check both buttons before acting on either: if electrical
+            # crosstalk (or a genuine double-press) makes both the shutdown
+            # and reboot buttons read low at once, committing to whichever
+            # was checked first would silently pick the wrong (and harder
+            # to reverse) action, so treat that as ambiguous and do nothing
+            btn1_low = not GPIO.input(btn1) and _confirmed_low(btn1)
+            btn2_low = not GPIO.input(btn2) and _confirmed_low(btn2)
+            btn3_low = not GPIO.input(btn3) and _confirmed_low(btn3)
+            if btn1_low or btn2_low or btn3_low:
+                logging.debug('combo poll: btn1=%s btn2=%s btn3=%s', btn1_low, btn2_low, btn3_low)
+            shutdown_wanted = btn2_low or btn3_low
+            reboot_wanted = btn1_low
+            if shutdown_wanted and reboot_wanted:
+                logging.warning('ambiguous shutdown/reboot combo (btn1=%s btn2=%s btn3=%s), ignoring',
+                                 btn1_low, btn2_low, btn3_low)
+            elif shutdown_wanted:
+                logging.info('shutdown combo confirmed: btn2(GPIO%d)=%s btn3(GPIO%d)=%s',
+                             btn2, btn2_low, btn3, btn3_low)
                 lcd.request_splash('shutdown', timeout=30)
                 run(shlex.split(shutdown_cmd))
                 return
-            btn1_low = not GPIO.input(btn1) and _confirmed_low(btn1)
-            btn3_low = not GPIO.input(btn3) and _confirmed_low(btn3)
-            if btn1_low or btn3_low:
-                logging.info('reboot combo confirmed: btn1(GPIO%d)=%s btn3(GPIO%d)=%s',
-                             btn1, btn1_low, btn3, btn3_low)
+            elif reboot_wanted:
+                logging.info('reboot combo confirmed on btn1 (GPIO%d)', btn1)
                 lcd.request_splash('reboot', timeout=30)
                 run(shlex.split(reboot_cmd))
                 return

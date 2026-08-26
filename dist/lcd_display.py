@@ -259,6 +259,38 @@ class Display:
 
         self.show_image(image)
 
+    def render_idle(self, wifi):
+        W, H = self.lcd.width, self.lcd.height
+        image = Image.new('RGB', (W, H), 'BLACK')
+        draw = ImageDraw.Draw(image)
+
+        connected, ssid, ip, signal = wifi
+        draw_wifi_icon(draw, 4, 4, connected, signal)
+        f_ip = _font(11)
+        ip_text = ip if ip else 'no connection'
+        _, _, iw, _ = draw.textbbox((0, 0), ip_text, font=f_ip)
+        draw.text((W - iw - 4, 3), ip_text,
+                   fill='white' if connected else (150, 150, 150), font=f_ip)
+        draw.line([4, 18, W - 4, 18], fill=(60, 60, 60))
+
+        f_help = _font(10)
+        lines = [
+            'JOY: navigate/seek',
+            'JOY+U/D: volume',
+            'JOY+L/R: sub delay',
+            'K1 first/subs  K2 pause',
+            'K3 last/quit',
+            'JOY .5s info  1.5s full',
+            'JOY+K1 reboot',
+            'JOY+K2/K3 shutdown',
+        ]
+        y = 24
+        for line in lines:
+            draw.text((4, y), line, fill=(190, 190, 190), font=f_help)
+            y += 12
+
+        self.show_image(image, backlight=50)
+
     def show_splash(self, kind):
         renderer = getattr(self, f'_render_splash_{kind}', None)
         if renderer is None:
@@ -317,12 +349,21 @@ class LcdManager:
         self._override = None  # (render_fn, expire_monotonic)
         self._wake = threading.Event()
         self._stop = threading.Event()
+        self._shutting_down = threading.Event()
         self._threads = []
 
     def request_message(self, text, timeout=5, color='yellow'):
         self._set_override(lambda: self.display.show_text(text, color=color), timeout)
 
     def request_splash(self, kind, timeout=6):
+        if kind in ('shutdown', 'reboot'):
+            # once a shutdown/reboot is underway, never let the loop fall
+            # back to the dashboard/idle screen below: the machine may be
+            # killed at any point from here on (runit stopping this service,
+            # then power actually cutting), and a backlight left lit mid-PWM
+            # cycle at that moment would stay stuck on since nothing is left
+            # running to turn it off
+            self._shutting_down.set()
         self._set_override(lambda: self.display.show_splash(kind), timeout)
 
     def _set_override(self, render_fn, timeout):
@@ -357,12 +398,16 @@ class LcdManager:
                     render_fn()
                     self._wake.wait(max(0.0, expire - monotonic()))
                     continue
-                state = self.get_playback_state()
-                if state is None:
+                if self._shutting_down.is_set():
                     self.display.off()
-                    self._wake.wait(1.5)
+                    self._wake.wait(2)
                     continue
+                state = self.get_playback_state()
                 wifi = get_wifi_status()
+                if state is None:
+                    self.display.render_idle(wifi)
+                    self._wake.wait(5)
+                    continue
                 self.display.render_now_playing(wifi=wifi, **state)
             except Exception as e:
                 # a single bad frame (e.g. an unknown splash kind from a

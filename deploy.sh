@@ -89,7 +89,6 @@ ln -sf /etc/sv/agetty-autologin-tty1 /var/service
 
 # copy system files
 install -Dm644 dist/raspberrypi.rules /etc/udev/rules.d/raspberrypi.rules
-install -Dm755 dist/40-show_ip /usr/libexec/dhcpcd-hooks/40-show_ip
 
 # copy user files
 install -o "${user}" -Dm755 dist/.bashrc /home/${user}/.bashrc
@@ -105,7 +104,6 @@ install -o "${user}" -Dm755 dist/lcd_client.py /home/${user}/bin/lcd_client.py
 install -o "${user}" -Dm755 dist/lcd_display.py /home/${user}/bin/lcd_display.py
 install -o "${user}" -Dm755 dist/write_lcd.py /home/${user}/bin/write_lcd.py
 install -o "${user}" -Dm755 dist/lcd_splash.py /home/${user}/bin/lcd_splash.py
-install -o "${user}" -Dm755 dist/show_help.sh /home/${user}/bin/show_help.sh
 chown "${user}" /home/${user} /home/${user}/.vifm
 chown "${user}" /home/${user}/bin
 
@@ -123,8 +121,7 @@ mkdir /run/runit/supervise.omxplayer-hat && chown '"${user}"' /run/runit/supervi
 # replace placeholder with string
 sed -i "s/{{user}}/${user}/g" /home/${user}/bin/mount_all.sh \
                               /home/${user}/bin/write_lcd.py \
-                              /home/${user}/bin/lcd_splash.py \
-                              /usr/libexec/dhcpcd-hooks/40-show_ip
+                              /home/${user}/bin/lcd_splash.py
 
 # add sudoers entry
 cat >/etc/sudoers.d/${user}_nopasswd <<HERE
@@ -135,8 +132,8 @@ grep -q bin/mount_all.sh /etc/rc.local || {
   echo "/home/${user}/bin/mount_all.sh" >> /etc/rc.local
 }
 
-grep -q bin/show_help.sh /etc/rc.local || {
-  echo "su ${user} -c '/home/${user}/bin/lcd_splash.py boot 4 && /home/${user}/bin/show_help.sh' &" >> /etc/rc.local
+grep -q bin/lcd_splash.py /etc/rc.local || {
+  echo "su ${user} -c '/home/${user}/bin/lcd_splash.py boot 4' &" >> /etc/rc.local
 }
 
 # configure per-user services

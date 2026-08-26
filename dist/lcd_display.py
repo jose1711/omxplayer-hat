@@ -17,6 +17,7 @@ import socket
 import subprocess
 import threading
 from datetime import datetime
+from getpass import getuser
 from time import monotonic, sleep
 
 from PIL import Image, ImageDraw, ImageFont
@@ -145,6 +146,48 @@ def draw_wifi_icon(draw, x, y, connected, signal_dbm):
                    fill=(200, 0, 0), width=2)
 
 
+def get_usb_status():
+    '''Whether any removable media is currently mounted (mount_all.sh and
+    the devmon service both mount under /run/media/<user>).'''
+    try:
+        return bool(os.listdir(f'/run/media/{getuser()}'))
+    except OSError:
+        return False
+
+
+def _thick_line(draw, p1, p2, width, color):
+    '''draw.line(..., width=) miters diagonal segments badly at small
+    sizes; a manually-computed rectangle polygon gives clean edges
+    regardless of angle.'''
+    x1, y1 = p1
+    x2, y2 = p2
+    length = math.hypot(x2 - x1, y2 - y1)
+    ux, uy = (x2 - x1) / length, (y2 - y1) / length
+    px, py = -uy * width / 2, ux * width / 2
+    draw.polygon([(x1 + px, y1 + py), (x2 + px, y2 + py),
+                  (x2 - px, y2 - py), (x1 - px, y1 - py)], fill=color)
+
+
+def draw_usb_icon(draw, x, y):
+    '''The classic USB "trident" logo (branches ending in a circle and a
+    square, merging into a stem with an arrowhead), rotated on its side
+    to fit a horizontal status row. Only meant to be drawn when a drive
+    is actually mounted — unlike the wifi icon, there's no "disconnected"
+    state worth showing, so callers simply skip drawing it otherwise.'''
+    color = (210, 210, 210)
+    cy = y + 5
+    fork = (x + 7, cy)
+    draw.ellipse([x, cy - 2, x + 4, cy + 2], fill=color)
+    _thick_line(draw, (x + 4, cy), fork, 2, color)
+    _thick_line(draw, fork, (x + 12, cy), 2, color)
+    draw.polygon([(x + 11, cy - 3), (x + 11, cy + 3), (x + 15, cy)], fill=color)
+    _thick_line(draw, fork, (x + 10, y), 2, color)
+    draw.rectangle([x + 8, y - 2, x + 12, y + 1], fill=color)
+    _thick_line(draw, fork, (x + 10, y + 10), 2, color)
+    draw.ellipse([x + 8, y + 8, x + 12, y + 12], fill=color)
+    draw.ellipse([fork[0] - 1, fork[1] - 1, fork[0] + 1, fork[1] + 1], fill=color)
+
+
 def send_direct(render_fn, timeout):
     '''Draw directly on the hardware. Only used as a fallback when the
     daemon isn't reachable (e.g. early boot, or after shutdown has already
@@ -213,13 +256,15 @@ class Display:
         draw.multiline_text((x, y), text, fill=color, font=font, align='center')
         self.show_image(image, backlight=backlight)
 
-    def render_now_playing(self, *, title, pos_s, dur_s, paused, wifi):
+    def render_now_playing(self, *, title, pos_s, dur_s, paused, wifi, usb):
         W, H = self.lcd.width, self.lcd.height
         image = Image.new('RGB', (W, H), 'BLACK')
         draw = ImageDraw.Draw(image)
 
         connected, ssid, ip, signal = wifi
         draw_wifi_icon(draw, 4, 4, connected, signal)
+        if usb:
+            draw_usb_icon(draw, 24, 4)
 
         now_str = datetime.now().strftime('%H:%M')
         f_small = _font(11)
@@ -259,19 +304,23 @@ class Display:
 
         self.show_image(image)
 
-    def render_idle(self, wifi):
+    def render_idle(self, wifi, usb):
         W, H = self.lcd.width, self.lcd.height
         image = Image.new('RGB', (W, H), 'BLACK')
         draw = ImageDraw.Draw(image)
 
         connected, ssid, ip, signal = wifi
         draw_wifi_icon(draw, 4, 4, connected, signal)
-        f_ip = _font(11)
+        f_ip = _font(9)
         ip_text = ip if ip else 'no connection'
         _, _, iw, _ = draw.textbbox((0, 0), ip_text, font=f_ip)
-        draw.text((W - iw - 4, 3), ip_text,
+        draw.text((W - iw - 4, 4), ip_text,
                    fill='white' if connected else (150, 150, 150), font=f_ip)
         draw.line([4, 18, W - 4, 18], fill=(60, 60, 60))
+        if usb:
+            # drawn last so its opaque fill sits cleanly on top of the
+            # divider line instead of being cut by it
+            draw_usb_icon(draw, 24, 4)
 
         f_help = _font(10)
         lines = [
@@ -404,11 +453,12 @@ class LcdManager:
                     continue
                 state = self.get_playback_state()
                 wifi = get_wifi_status()
+                usb = get_usb_status()
                 if state is None:
-                    self.display.render_idle(wifi)
+                    self.display.render_idle(wifi, usb)
                     self._wake.wait(5)
                     continue
-                self.display.render_now_playing(wifi=wifi, **state)
+                self.display.render_now_playing(wifi=wifi, usb=usb, **state)
             except Exception as e:
                 # a single bad frame (e.g. an unknown splash kind from a
                 # malformed socket request) must not permanently wedge the

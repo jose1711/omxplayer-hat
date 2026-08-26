@@ -102,6 +102,8 @@ starting point.
   automounted (under `/run/media/${user}`) without needing a reboot or a manual `mount_all.sh` run.
 - Added `ntfs-3g` as a dependency: without it, `mount` falls back to the kernel's `ntfs3` driver,
   which doesn't understand the `utf8` option udevil passes, and NTFS drives failed to automount.
+- Added a USB icon (the classic "trident" logo, sideways) to the LCD's wifi/IP status row,
+  shown whenever a drive is mounted under `/run/media/${user}`.
 
 ### 2026-08-26
 

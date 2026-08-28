@@ -82,19 +82,37 @@ def display_title(filename):
     return re.sub(r'[._]+', ' ', name).strip()
 
 
+_wifi_iface_cache = None
+
+
 def _detect_wifi_iface():
+    global _wifi_iface_cache
+    if _wifi_iface_cache is not None:
+        return _wifi_iface_cache
     try:
         out = subprocess.run(['iw', 'dev'], capture_output=True, text=True, timeout=2).stdout
         m = re.search(r'Interface (\w+)', out)
         if m:
-            return m.group(1)
+            _wifi_iface_cache = m.group(1)
+            return _wifi_iface_cache
     except Exception:
         pass
     return 'wlan0'
 
 
+_wifi_status_cache = None
+_wifi_status_expire = 0.0
+_WIFI_STATUS_TTL = 5  # ip/iw are subprocess spawns; the render loop ticks
+                       # once a second while playing, so caching keeps that
+                       # from forking+exec'ing 3 processes every single tick
+
+
 def get_wifi_status(iface=None):
-    '''Best-effort wifi status: (connected, ssid, ip, signal_dbm).'''
+    '''Best-effort wifi status: (connected, ssid, ip, signal_dbm). Cached
+    for _WIFI_STATUS_TTL seconds since signal/IP don't change that fast.'''
+    global _wifi_status_cache, _wifi_status_expire
+    if _wifi_status_cache is not None and monotonic() < _wifi_status_expire:
+        return _wifi_status_cache
     iface = iface or _detect_wifi_iface()
     ip = None
     ssid = None
@@ -115,7 +133,9 @@ def get_wifi_status(iface=None):
         signal = int(m.group(1)) if m else None
     except Exception:
         pass
-    return (ip is not None, ssid, ip, signal)
+    _wifi_status_cache = (ip is not None, ssid, ip, signal)
+    _wifi_status_expire = monotonic() + _WIFI_STATUS_TTL
+    return _wifi_status_cache
 
 
 def draw_wifi_icon(draw, x, y, connected, signal_dbm):
@@ -466,7 +486,7 @@ class LcdManager:
                 logging.error(f'LCD render failed, skipping frame: {e}')
                 self._wake.wait(1)
                 continue
-            self._wake.wait(1)
+            self._wake.wait(3)
 
     def _socket_server(self):
         try:

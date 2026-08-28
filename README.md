@@ -96,6 +96,17 @@ starting point.
 
 ## Changelog
 
+### 2026-08-28
+
+- Fixed high CPU usage on the Pi Zero W while a video plays. The LCD render loop was spawning 3
+  subprocesses (`iw`/`ip`) every second just to refresh the wifi status; that's now cached and
+  only refreshed every 5s. The bigger cost was `LCD_1in44.py`'s RGB888->RGB565 pixel conversion,
+  a pure-Python per-pixel loop that took 650-800ms per frame on the Pi Zero's single ARM11 core;
+  replaced with a lookup-table + bitwise approach (~35x faster, bit-identical output). The
+  dashboard's refresh interval while playing was also relaxed from 1s to 3s per user preference.
+  Together this took the daemon from ~45-53% CPU down to ~20-25%. The remaining load is mostly
+  `rpi-lgpio`'s own GPIO event-detection notification threads, which is outside this project's code.
+
 ### 2026-08-27
 
 - Added a per-user `devmon` service (`~/service/devmon`) so USB drives plugged in after boot get

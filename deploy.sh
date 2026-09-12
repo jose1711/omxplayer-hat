@@ -39,6 +39,7 @@ xbps-install -Syu tmux \
              vim \
              iw \
              dejavu-fonts-ttf \
+             freefont-ttf \
              python3-Pillow \
              python3-pip \
              make \

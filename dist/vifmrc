@@ -6,5 +6,9 @@ command! playSTRETCH
  \ :! ~/bin/omxplayer.sh %c --aspect-mode stretch
 command! playFILL
  \ :! ~/bin/omxplayer.sh %c --aspect-mode fill
+command! audioBluetooth
+ \ :! echo alsa:bluealsa > ~/.omxplayer-audio; ~/bin/write_lcd.py 'Audio: Bluetooth' 3
+command! audioDefault
+ \ :! rm -f ~/.omxplayer-audio; ~/bin/write_lcd.py 'Audio: default' 3
 command! quitMenu
  \ :

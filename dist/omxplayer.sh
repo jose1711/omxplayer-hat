@@ -29,6 +29,13 @@ then
 fi
 dbfile=~/positions.sqlite
 
+# audio output selected in vifm (audioBluetooth/audioDefault commands)
+audio_file=~/.omxplayer-audio
+if [ -s "${audio_file}" ]
+then
+  set -- -o "$(cat "${audio_file}")" "$@"
+fi
+
 cd $(dirname "${file}")
 file_full=$(readlink -f "${file}")
 stored_position=""

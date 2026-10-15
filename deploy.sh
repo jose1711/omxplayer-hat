@@ -52,10 +52,22 @@ xbps-install -Syu tmux \
              gcc \
              htop \
              swig \
-             terminus-font
+             terminus-font \
+             bluez \
+             bluez-alsa
 
 # copy udevil configuration
 install -Dm644 dist/udevil.conf /etc/udevil/udevil.conf
+
+# bluetooth audio: bluez-alsa exposes the connected speaker as the ALSA
+# "bluealsa" device (selected via audioBluetooth in vifm); bluetoothd needs
+# dbus. The groups only exist once the packages are installed: bluetooth
+# lets the user pair via bluetoothctl, audio lets them talk to bluealsa.
+usermod -a -G bluetooth,audio "${user}"
+for sv in dbus bluetoothd bluez-alsa
+do
+  ln -sf "/etc/sv/${sv}" /var/service
+done
 
 [ -f lg.zip ] || wget http://abyz.me.uk/lg/lg.zip
 unzip -o lg.zip

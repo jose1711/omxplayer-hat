@@ -58,6 +58,7 @@ JOY_UP = 6
 JOY_DOWN = 19
 JOY_LEFT = 5
 JOY_RIGHT = 26
+MENU_HOLD = 1.5  # seconds KEY1 must be held (while idle) to open the menu
 
 
 def _confirmed_low(pin, checks=3, delay=0.03):
@@ -176,12 +177,36 @@ def button_callback(channel):
             logging.debug(['omxplayer_send', action])
             omxplayer_bus.send(action)
     if not active:
+        if channel == btn1:
+            threading.Thread(target=_btn1_idle_logic, args=(channel,), daemon=True).start()
+            return
         logging.debug(['tmux_send', btn_action[channel][1]])
         tmux_send(btn_action[channel][1])
         return
     label = _action_feedback(action, state_before)
     if label:
         lcd.request_message(label, timeout=1.5)
+
+
+def _btn1_idle_logic(channel):
+    '''KEY1 while nothing plays: holding it opens vifm's command menu (F2),
+    which the joystick can't do reliably (pressing it in tends to tilt it
+    too). A short press still sends its vifm key, but only on release,
+    once it's clear it wasn't a hold.'''
+    start = monotonic()
+    while not GPIO.input(channel):
+        if _modifier_active.is_set():
+            # JOY got pressed too: that's the reboot combo, not ours
+            return
+        if monotonic() - start > MENU_HOLD:
+            logging.debug(['tmux_send', 'f2'])
+            tmux_send('f2')
+            while not GPIO.input(channel):
+                sleep(0.05)
+            return
+        sleep(0.05)
+    logging.debug(['tmux_send', btn_action[channel][1]])
+    tmux_send(btn_action[channel][1])
 
 
 _tmux_session = None

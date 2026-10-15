@@ -73,6 +73,17 @@ shutdown has already stopped it).
   ./deploy.sh
   # type new password for user when prompted
   ```
+* optionally pair a Bluetooth speaker (switch it to pairing mode first). `trust` lets it reconnect
+  on its own when it's switched off and on again
+  ```
+  bluetoothctl
+  scan on
+  # wait for the speaker to show up, then
+  pair XX:XX:XX:XX:XX:XX
+  trust XX:XX:XX:XX:XX:XX
+  connect XX:XX:XX:XX:XX:XX
+  ```
+  then pick `audioBluetooth` in vifm's command menu (hold KEY1 while nothing plays) to play through it
 * prohibit `root` login via SSH
   ```
   # login via ssh
@@ -90,11 +101,53 @@ to improve performance) and everything else here is under GPL-v3.
 
 ## Manual compilation
 
-If you do not trust built packages in `repo/`, you may want to compile them manually - see `build/` which
-contains files to help you with this task. https://github.com/void-linux/void-packages#quick-start is a nice
-starting point.
+If you do not trust the prebuilt packages in `repo/`, you can build them yourself. `build/` contains
+void-packages templates for `omxplayer` and `rpi-userland` (both are orphaned in Void: upstream `srcpkgs/`
+only has symlinks to `vlc` and `rpi-utils` under those names) plus the shlibs entries they need.
+`build/build.sh` clones https://github.com/void-linux/void-packages next to this repository (or reuses an
+existing checkout), drops the templates in, registers the shlibs, bootstraps and builds:
+
+```
+# natively on the Pi (slow on a Pi Zero, rpi-userland is built too)
+build/build.sh
+
+# or cross-compile on a faster Void machine (or any host with xbps-static)
+build/build.sh -a armv6l
+```
+
+Install the result on the Pi (copy `void-packages/hostdir/binpkgs` over first if you cross-compiled):
+
+```
+sudo xbps-install -R ../void-packages/hostdir/binpkgs rpi-userland rpi-userland-devel omxplayer
+sudo xbps-pkgdb -m hold omxplayer rpi-userland rpi-userland-devel
+```
+
+Use `-d DIR` to point at a different void-packages checkout. `-r` additionally copies the built
+packages into `repo/` and regenerates its index (needs `xbps-rindex`), which is how the prebuilt
+packages get refreshed; `deploy.sh` then installs them from there.
 
 ## Changelog
+
+### 2026-10-15
+
+- omxplayer (`20190102_3`) now survives its ALSA device going away mid-playback (e.g. a Bluetooth
+  speaker via bluealsa disconnecting): instead of looping on write errors it closes the device,
+  keeps consuming audio at playback speed so video stays in sync, and reopens the device about
+  once a second until it comes back. The package also depends on `freefont-ttf` now, the font its
+  subtitles/OSD are patched to use.
+- Added `audioBluetooth`/`audioDefault` to vifm's command menu (F2): the choice
+  is remembered in `~/.omxplayer-audio` and every playback started from vifm then goes to
+  bluealsa (`-o alsa:bluealsa`) or omxplayer's default output. The speaker must be paired and
+  trusted (`bluetoothctl trust <MAC>`), otherwise it can't reconnect on its own after being
+  switched off and on again. `deploy.sh` now installs `bluez` and `bluez-alsa` and enables the
+  `dbus`, `bluetoothd` and `bluez-alsa` services.
+- Holding KEY1 for 1.5s while nothing plays now opens vifm's command menu (F2). Holding the
+  joystick in still does too, but it's hard to press without also tilting it. A short KEY1 press
+  is unchanged, except that while idle it's sent on release rather than on press.
+- Rebuilt `rpi-userland`/`rpi-userland-devel` and refreshed the `repo/` index.
+- Added `build/build.sh`, which automates the manual build with void-packages (natively or
+  cross-compiled with `-a armv6l`) and can refresh `repo/` with `-r`. `rpi-userland-devel` in
+  `build/srcpkgs` is now a symlink to `rpi-userland`, as void-packages expects for subpackages.
 
 ### 2026-08-28
 

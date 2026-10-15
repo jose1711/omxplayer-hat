@@ -1,0 +1,200 @@
+diff --git a/linux/OMXAlsa.cpp b/linux/OMXAlsa.cpp
+index 348acd9..3429c8b 100644
+--- a/linux/OMXAlsa.cpp
++++ b/linux/OMXAlsa.cpp
+@@ -18,6 +18,7 @@
+ #include <string.h>
+ #include <stdlib.h>
+ #include <pthread.h>
++#include <unistd.h>
+ #include <alsa/asoundlib.h>
+ #include <IL/OMX_Core.h>
+ #include <IL/OMX_Component.h>
+@@ -1016,6 +1017,50 @@ static OMX_ERRORTYPE omxalsasink_deinit(OMX_HANDLETYPE hComponent)
+ 	return OMX_ErrorNone;
+ }
+ 
++/* Open and configure the ALSA device. *rate is the wanted rate on entry
++ * and the negotiated one on return. Used for the initial open and to
++ * reopen a device that went away (e.g. a Bluetooth speaker via bluealsa
++ * that disconnected and came back). */
++static int omxalsasink_open_pcm(OMX_ALSASINK *sink, snd_pcm_t **pdev, unsigned int *rate)
++{
++	snd_pcm_t *dev = 0;
++	snd_pcm_hw_params_t *hwp;
++	snd_pcm_uframes_t buffer_size, period_size, period_size_max;
++	int err;
++
++	err = snd_pcm_open(&dev, sink->device_name, SND_PCM_STREAM_PLAYBACK, 0);
++	if (err < 0) return err;
++
++	buffer_size = *rate / 5;
++	period_size = buffer_size / 4;
++	period_size_max = buffer_size / 3;
++
++	snd_pcm_hw_params_alloca(&hwp);
++	snd_pcm_hw_params_any(dev, hwp);
++	err = snd_pcm_hw_params_set_channels(dev, hwp, sink->pcm.nChannels);
++	if (err) goto fail;
++	err = snd_pcm_hw_params_set_access(dev, hwp, sink->pcm.bInterleaved ? SND_PCM_ACCESS_RW_INTERLEAVED : SND_PCM_ACCESS_RW_NONINTERLEAVED);
++	if (err) goto fail;
++	err = snd_pcm_hw_params_set_rate_near(dev, hwp, rate, 0);
++	if (err) goto fail;
++	err = snd_pcm_hw_params_set_format(dev, hwp, sink->pcm_format);
++	if (err) goto fail;
++	err = snd_pcm_hw_params_set_period_size_max(dev, hwp, &period_size_max, 0);
++	if (err) goto fail;
++	err = snd_pcm_hw_params_set_buffer_size_near(dev, hwp, &buffer_size);
++	if (err) goto fail;
++	err = snd_pcm_hw_params_set_period_size_near(dev, hwp, &period_size, 0);
++	if (err) goto fail;
++	err = snd_pcm_hw_params(dev, hwp);
++	if (err) goto fail;
++
++	*pdev = dev;
++	return 0;
++fail:
++	snd_pcm_close(dev);
++	return err;
++}
++
+ static void *omxalsasink_worker(void *ptr)
+ {
+ 	GOMX_COMPONENT *comp = (GOMX_COMPONENT *) ptr;
+@@ -1026,8 +1071,6 @@ static void *omxalsasink_worker(void *ptr)
+ 	GOMX_PORT *clock_port = &comp->ports[OMXALSA_PORT_CLOCK];
+ 	snd_pcm_t *dev = 0;
+ 	snd_pcm_sframes_t n, delay;
+-	snd_pcm_hw_params_t *hwp;
+-	snd_pcm_uframes_t buffer_size, period_size, period_size_max;
+ 	SwrContext *resampler = 0;
+ 	uint8_t *resample_buf = 0;
+ 	int32_t timescale;
+@@ -1036,37 +1079,15 @@ static void *omxalsasink_worker(void *ptr)
+ 	unsigned int in_sample_rate;
+ 	unsigned int rate;
+ 	struct timespec ts;
++	time_t next_reopen = 0;
+ 	int err;
+ 
+ 	CINFO(comp, 0, "worker started");
+ 
+-	err = snd_pcm_open(&dev, sink->device_name, SND_PCM_STREAM_PLAYBACK, 0);
+-	if (err < 0) goto alsa_error;
+-
+ 	in_sample_rate = sink->pcm.nSamplingRate;
+ 	rate = sink->pcm.nSamplingRate;
+-	buffer_size = rate / 5;
+-	period_size = buffer_size / 4;
+-	period_size_max = buffer_size / 3;
+-
+-	snd_pcm_hw_params_alloca(&hwp);
+-	snd_pcm_hw_params_any(dev, hwp);
+-	err = snd_pcm_hw_params_set_channels(dev, hwp, sink->pcm.nChannels);
+-	if (err) goto alsa_error;
+-	err = snd_pcm_hw_params_set_access(dev, hwp, sink->pcm.bInterleaved ? SND_PCM_ACCESS_RW_INTERLEAVED : SND_PCM_ACCESS_RW_NONINTERLEAVED);
+-	if (err) goto alsa_error;
+-	err = snd_pcm_hw_params_set_rate_near(dev, hwp, &rate, 0);
+-	if (err) goto alsa_error;
+-	err = snd_pcm_hw_params_set_format(dev, hwp, sink->pcm_format);
+-	if (err) goto alsa_error;
+-	err = snd_pcm_hw_params_set_period_size_max(dev, hwp, &period_size_max, 0);
+-	if (err) goto alsa_error;
+-	err = snd_pcm_hw_params_set_buffer_size_near(dev, hwp, &buffer_size);
+-	if (err) goto alsa_error;
+-	err = snd_pcm_hw_params_set_period_size_near(dev, hwp, &period_size, 0);
+-	if (err) goto alsa_error;
+-	err = snd_pcm_hw_params(dev, hwp);
+-	if (err) goto alsa_error;
++	err = omxalsasink_open_pcm(sink, &dev, &rate);
++	if (err < 0) goto alsa_error;
+ 
+ 	sink->pcm.nSamplingRate = rate;
+ 	sink->frame_size = (sink->pcm.nChannels * sink->pcm.nBitPerSample) >> 3;
+@@ -1091,10 +1112,36 @@ static void *omxalsasink_worker(void *ptr)
+ 
+ 	pthread_mutex_lock(&comp->mutex);
+ 	while (comp->wanted_state == OMX_StateExecuting) {
++		/* Device went away: retry opening it about once a second */
++		if (!dev) {
++			clock_gettime(CLOCK_MONOTONIC, &ts);
++			if (ts.tv_sec >= next_reopen) {
++				unsigned int new_rate = in_sample_rate;
++
++				next_reopen = ts.tv_sec + 1;
++				pthread_mutex_unlock(&comp->mutex);
++				err = omxalsasink_open_pcm(sink, &dev, &new_rate);
++				if (err == 0 && new_rate != rate) {
++					/* resampler output is fixed to the old rate */
++					snd_pcm_close(dev);
++					dev = 0;
++				}
++				pthread_mutex_lock(&comp->mutex);
++				if (dev) {
++					CINFO(comp, 0, "ALSA device '%s' reopened", sink->device_name);
++					if (resampler) swr_init(resampler);
++				}
++			}
++		}
++
+ 		/* Update hw buffer length, and xrun state */
+-		sink->pcm_state = snd_pcm_state(dev);
+ 		delay = 0;
+-		snd_pcm_delay(dev, &delay);
++		if (dev) {
++			sink->pcm_state = snd_pcm_state(dev);
++			snd_pcm_delay(dev, &delay);
++		} else {
++			sink->pcm_state = SND_PCM_STATE_DISCONNECTED;
++		}
+ 		if (resampler) delay += swr_get_delay(resampler, rate);
+ 		sink->pcm_delay = delay;
+ 
+@@ -1176,17 +1223,31 @@ static void *omxalsasink_worker(void *ptr)
+ 			sink->pcm_delay += out_len;
+ 			pthread_mutex_unlock(&comp->mutex);
+ 
+-			while (out_len > 0) {
++			while (out_len > 0 && dev) {
+ 				n = snd_pcm_writei(dev, out_ptr, out_len);
+ 				if (n < 0) {
+ 					CINFO(comp, 0, "alsa error: %ld: %s", n, snd_strerror(n));
+-					snd_pcm_recover(dev, n, 1);
++					if (snd_pcm_recover(dev, n, 1) < 0) {
++						/* Not an xrun/suspend: the device is gone
++						 * (bluealsa returns -ENODEV on disconnect).
++						 * Close it and retry opening from the loop. */
++						CINFO(comp, 0, "ALSA device '%s' lost, will try to reopen", sink->device_name);
++						snd_pcm_close(dev);
++						dev = 0;
++						clock_gettime(CLOCK_MONOTONIC, &ts);
++						next_reopen = ts.tv_sec + 1;
++						break;
++					}
+ 					n = 0;
+ 				}
+ 				out_len -= n;
+ 				n *= sink->frame_size;
+ 				out_ptr += n;
+ 			}
++			/* Without a device, consume audio at playback speed so the
++			 * audio clock (and video synced to it) keeps running. */
++			if (!dev && out_len > 0)
++				usleep((useconds_t)((int64_t)out_len * 1000000 / rate));
+ 			pthread_mutex_lock(&comp->mutex);
+ 		}
+ 
+@@ -1194,8 +1255,10 @@ static void *omxalsasink_worker(void *ptr)
+ 		if (buf->nFlags & OMX_BUFFERFLAG_EOS) {
+ 			CDEBUG(comp, 0, "end-of-stream");
+ 			pthread_mutex_unlock(&comp->mutex);
+-			snd_pcm_drain(dev);
+-			snd_pcm_prepare(dev);
++			if (dev) {
++				snd_pcm_drain(dev);
++				snd_pcm_prepare(dev);
++			}
+ 			pthread_mutex_lock(&comp->mutex);
+ 			sink->pcm_state = SND_PCM_STATE_PREPARED;
+ 			sink->pcm_delay = 0;
+
